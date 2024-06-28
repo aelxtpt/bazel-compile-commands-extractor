@@ -613,7 +613,14 @@ _get_headers.has_logged = False
 def _get_files(compile_action):
     """Gets the ({source files}, {header files}) clangd should be told the command applies to."""
 
+    # log_info(">>> _get_files: Compile_action: {}, compile_action.arguments: {}".format(compile_action, compile_action.arguments))
+
     # Getting the source file is a little trickier than it might seem.
+
+    is_precompiled_header = any([arg == "-xc++-header" for arg in compile_action.arguments])
+    if is_precompiled_header:
+        header_files = [arg for arg in compile_action.arguments if not arg.startswith('-') and arg.endswith(".h")]
+        return set(), set(header_files)
 
     # First, we do the obvious thing: Filter args to those that look like source files.
     source_file_candidates = [arg for arg in compile_action.arguments if not arg.startswith('-') and arg.endswith(_get_files.source_extensions)]
@@ -1147,6 +1154,8 @@ def _convert_compile_commands(aquery_output):
     ) as threadpool:
         outputs = threadpool.map(_get_cpp_command_for_files, aquery_output.actions)
 
+    log_info(">>> Finished processing actions <<<")
+
     # Yield as compile_commands.json entries
     header_files_already_written = set()
     for source_files, header_files, compile_command_args in outputs:
@@ -1232,6 +1241,8 @@ def _get_commands(target: str, flags: str):
 
     aquery_args += additional_flags
 
+    log_info(">>> Aquery args is: ", aquery_args)
+
     aquery_process = subprocess.run(
         aquery_args,
         # MIN_PY=3.7: Replace PIPEs with capture_output.
@@ -1241,7 +1252,6 @@ def _get_commands(target: str, flags: str):
         check=False, # We explicitly ignore errors from `bazel aquery` and carry on.
     )
 
-
     # Filter aquery error messages to just those the user should care about.
     # Shush known warnings about missing graph targets.
     # The missing graph targets are not things we want to introspect anyway.
@@ -1249,6 +1259,10 @@ def _get_commands(target: str, flags: str):
     missing_targets_warning: typing.Pattern[str] = re.compile(r'(\(\d+:\d+:\d+\) )?(\033\[[\d;]+m)?WARNING: (\033\[[\d;]+m)?Targets were missing from graph:') # Regex handles --show_timestamps and --color=yes. Could use "in" if we ever need more flexibility.
     aquery_process.stderr = '\n'.join(line for line in aquery_process.stderr.splitlines() if not missing_targets_warning.match(line))
     if aquery_process.stderr: print(aquery_process.stderr, file=sys.stderr)
+
+    # Save the aquery_process.stdout on file result.txt
+    with open('result.txt', 'w') as f:
+        f.write(aquery_process.stdout)
 
     # Parse proto output from aquery
     try:
@@ -1268,6 +1282,8 @@ def _get_commands(target: str, flags: str):
     If this is a header-only library, please instead specify a test or binary target that compiles it (search "header-only" in README.md).
     Continuing gracefully...""")
         return
+
+    log_info(">>>> CONVERTING TO COMPILE COMMANDS <<<<")
 
     yield from _convert_compile_commands(parsed_aquery_output)
 
