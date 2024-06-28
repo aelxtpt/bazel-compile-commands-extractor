@@ -1260,9 +1260,9 @@ def _get_commands(target: str, flags: str):
     aquery_process.stderr = '\n'.join(line for line in aquery_process.stderr.splitlines() if not missing_targets_warning.match(line))
     if aquery_process.stderr: print(aquery_process.stderr, file=sys.stderr)
 
-    # Save the aquery_process.stdout on file result.txt
-    with open('result.txt', 'w') as f:
-        f.write(aquery_process.stdout)
+    # # Save the aquery_process.stdout on file result.txt
+    # with open('result.txt', 'w') as f:
+    #     f.write(aquery_process.stdout)
 
     # Parse proto output from aquery
     try:
